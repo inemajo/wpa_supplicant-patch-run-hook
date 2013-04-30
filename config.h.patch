@@ -1,0 +1,19 @@
+--- wpa_supplicant/config.h.old	2013-04-26 23:18:49.647399188 +0200
++++ wpa_supplicant/config.h	2013-04-26 23:24:11.217379010 +0200
+@@ -345,6 +345,16 @@
+ 	 *   1 = only include configured SSIDs in scan results/BSS table
+ 	 */
+ 	int filter_ssids;
++
++
++	/**
++	 * event_path - Path to the event file
++	 *
++	 *   This file is called after a wpa_supplicant event
++	 *   wpa_supplicant fork and execve event file with
++	 *   information in the environnement.
++	 */
++	char *event_path;
+ };
+ 
+ 

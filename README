@@ -1,0 +1,42 @@
+##
+## wpa_supplicant patch run hook script README
+##
+
+/*
+ * ----------------------------------------------------------------------------
+ * "THE BEER-WARE LICENSE" (Revision 42):
+ * As long as you retain this notice you
+ * can do whatever you want with this stuff. If we meet some day, and you think
+ * this stuff is worth it, you can buy me a beer in return
+ * ----------------------------------------------------------------------------
+ */
+
+## !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+##	This patch has no definitive architecture, all variables name may and
+##     fonctionnalities may change, please read the TODO file if you want
+##     using this patch now
+## !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+WHY?:
+There no simply way to use wpa_supplicant events. With this patch, in every
+events of wpa_supplicant it may call a hook script and it passing in
+environnement variables infos of current state.
+
+The env variables are :
+
+always:
+
+     -WPAS_IFNAME (interface name)
+     -WPAS_STATE (event state like WPA_COMPLETED,WPA_SCANNING...)
+
+when WPA_COMPLETED state:
+     -WPAS_SSID (ssid of completed ap)
+     -WPAS_REAUTH (0 no, 1 yes)
+     -WPAS_ID (number of list id selectionned in wpa_supplicant.conf)
+     -WPAS_MAC (mac of completed ap)
+
+
+In the /etc/wpa_supplicant/wpa_supplicant.conf you just add in global variable:
+
+event_path=/full-directory-path-of-script/script

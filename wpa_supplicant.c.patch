@@ -1,0 +1,106 @@
+--- wpa_supplicant/wpa_supplicant.c.old	2013-04-26 23:26:29.628648631 +0200
++++ wpa_supplicant/wpa_supplicant.c	2013-04-30 21:37:39.040604507 +0200
+@@ -509,6 +509,93 @@
+ }
+ 
+ 
++/* for wpa_supplicant_call_event will be change */
++void		copy_env(char **env, int i, const char *key, const char *value)
++{
++  int		keylen;
++
++  keylen = strlen(key);
++  env[i] = realloc(env[i], sizeof(char) * (1 + keylen + strlen(value)));
++  strncpy(env[i], key, keylen);
++  strcpy(env[i] + keylen, value);
++}
++
++/**
++ * wpa_supplicant_call_event - Call event file for current connection state
++ * @wpa_s: Pointer to wpa_supplicant data
++ * @state: The new connection state
++ *
++ * This function is called whenever the connection state changes, e.g.,
++ * association is completed for WPA/WPA2 4-Way Handshake is started.
++ */
++
++void		wpa_supplicant_call_event(struct wpa_supplicant *wpa_s,
++				  enum wpa_states state)
++{
++  extern char	**environ;
++  static char	**env = NULL;
++  static int	environ_size;
++  static char	*argv[2];
++  struct wpa_ssid *s_ssid = wpa_s->current_ssid;
++  int		i;
++  int		len;
++
++  if (env == NULL) {
++    argv[0] = strdup(wpa_s->conf->event_path);
++    argv[1] = NULL;
++    for (environ_size = 0; environ[environ_size] != NULL; environ_size++);
++
++    /* max = 6 + 1 */
++    env = malloc((environ_size + 7) * sizeof(char **));
++    memset(env, 0, sizeof(char **) * (environ_size+7));
++
++    for (i = 0 ; i != environ_size ; i++) {
++      len = strlen(environ[i]);
++      env[i] = malloc(len * sizeof(char *));
++      strcpy(env[i], environ[i]);
++    }
++  }
++
++  i = environ_size;
++
++  copy_env(env, i++, "WPAS_IFNAME=", wpa_s->ifname);
++  copy_env(env, i++, "WPAS_STATE=", wpa_supplicant_state_txt(state));
++
++  switch (state) {
++
++  case WPA_COMPLETED:
++    copy_env(env, i++, "WPAS_SSID=", s_ssid->ssid);
++    copy_env(env, i++, "WPAS_REAUTH=", wpa_s->reassociated_connection ? 
++	     "1" : "0");
++  
++    env[i] = realloc(env[i], sizeof(char) * (sizeof("WPAS_MAC=") + 17));
++    sprintf(env[i], "WPAS_MAC=" MACSTR , MAC2STR(wpa_s->bssid));
++    ++i;
++
++    if (s_ssid->id < 10) len = 1;
++    else if (s_ssid->id < 100) len = 2;
++    else for (len = 2; len * 10 > s_ssid->id; len++);
++    env[i] = realloc(env[i], sizeof(char) * (len + sizeof("WPAS_ID=")));
++    sprintf(env[i], "WPAS_ID=%d", s_ssid->id);
++    ++i;
++
++    break;
++  }
++
++  env[i] = NULL;
++  if (access(argv[0], X_OK|F_OK) == -1) {
++    wpa_msg(wpa_s, MSG_ERROR, "file \"%s\" doesn't exist or haven't permission", argv[0]);
++  }
++  else {
++    if (fork() == 0) {
++    execve(argv[0], argv, env);
++    perror("wpa_supplicant_call_event, execve:");
++    exit(0);
++    }
++  }
++
++}
++
+ /**
+  * wpa_supplicant_set_state - Set current connection state
+  * @wpa_s: Pointer to wpa_supplicant data
+@@ -526,6 +613,9 @@
+ 		   wpa_supplicant_state_txt(wpa_s->wpa_state),
+ 		   wpa_supplicant_state_txt(state));
+ 
++	if (wpa_s->conf->event_path != NULL)
++	  wpa_supplicant_call_event(wpa_s, state);
++
+ 	if (state != WPA_SCANNING)
+ 		wpa_supplicant_notify_scanning(wpa_s, 0);
+ 
