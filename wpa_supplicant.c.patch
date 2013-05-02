@@ -1,6 +1,6 @@
 --- wpa_supplicant/wpa_supplicant.c.old	2013-04-26 23:26:29.628648631 +0200
-+++ wpa_supplicant/wpa_supplicant.c	2013-05-02 13:48:57.246395713 +0200
-@@ -509,6 +509,80 @@
++++ wpa_supplicant/wpa_supplicant.c	2013-05-02 17:40:17.750589185 +0200
+@@ -509,6 +509,85 @@
  }
  
  
@@ -47,16 +47,19 @@
 +
 +  case WPA_COMPLETED:
 +    copy_env(exe->env, i++, "WPAS_SSID=", s_ssid->ssid);
-+    copy_env(exe->env, i++, "WPAS_REAUTH=", wpa_s->reassociated_connection ? 
-+	     "1" : "0");
++    copy_env(exe->env, i++, "WPAS_REAUTH=", (wpa_s->reassociated_connection ? 
++					     "1" : "0"));
 +  
 +    exe->env[i] = os_realloc(exe->env[i], sizeof(char) * (sizeof("WPAS_MAC=") + 17));
 +    sprintf(exe->env[i], "WPAS_MAC=" MACSTR , MAC2STR(wpa_s->bssid));
 +    ++i;
 +
-+    if (s_ssid->id < 10) len = 1;
-+    else if (s_ssid->id < 100) len = 2;
-+    else for (len = 2; len * 10 > s_ssid->id; len++);
++    if (s_ssid->id < 10)
++      len = 1;
++    else if (s_ssid->id < 100)
++      len = 2;
++    else
++      for (len = 2; len * 10 > s_ssid->id; len++);
 +    exe->env[i] = os_realloc(exe->env[i], sizeof(char) * (len + sizeof("WPAS_ID=")));
 +    sprintf(exe->env[i], "WPAS_ID=%d", s_ssid->id);
 +    ++i;
@@ -64,6 +67,8 @@
 +    break;
 +  }
 +
++  if (exe->env[i] != NULL)
++    free(exe->env[i]);
 +  exe->env[i] = NULL;
 +  if (access(exe->argv[0], X_OK|F_OK) == -1) {
 +    wpa_msg(wpa_s, MSG_ERROR, "file \"%s\" doesn't exist or haven't permission", exe->argv[0]);
@@ -81,7 +86,7 @@
  /**
   * wpa_supplicant_set_state - Set current connection state
   * @wpa_s: Pointer to wpa_supplicant data
-@@ -526,6 +600,9 @@
+@@ -526,6 +605,9 @@
  		   wpa_supplicant_state_txt(wpa_s->wpa_state),
  		   wpa_supplicant_state_txt(state));
  
@@ -91,7 +96,7 @@
  	if (state != WPA_SCANNING)
  		wpa_supplicant_notify_scanning(wpa_s, 0);
  
-@@ -581,6 +658,7 @@
+@@ -581,6 +663,7 @@
  			"received", sig);
  	}
  	wpa_supplicant_terminate_proc(global);
@@ -99,7 +104,7 @@
  }
  
  
-@@ -2227,6 +2305,54 @@
+@@ -2227,6 +2310,52 @@
  	return NULL;
  }
  
@@ -132,12 +137,10 @@
 +{
 +  int		i;
 +
-+  printf("coucou-------------------------------------------\n");
 +  if (exe->env != NULL) {
 +    for (i = 0 ; i != exe->wpas_env_size ; i++)
 +      os_free(exe->env[i]);
 +
-+    printf("coucou---------------------------------------\n");
 +    while (i != (exe->wpas_env_size + 7)) {
 +      if (exe->env[i] != NULL)
 +	os_free(exe->env[i]);
@@ -154,7 +157,7 @@
  
  /**
   * wpa_supplicant_init - Initialize %wpa_supplicant
-@@ -2261,6 +2387,9 @@
+@@ -2261,6 +2390,9 @@
  	global = os_zalloc(sizeof(*global));
  	if (global == NULL)
  		return NULL;
@@ -164,7 +167,7 @@
  	global->params.daemonize = params->daemonize;
  	global->params.wait_for_monitor = params->wait_for_monitor;
  	global->params.dbus_ctrl_interface = params->dbus_ctrl_interface;
-@@ -2404,6 +2533,8 @@
+@@ -2404,6 +2536,8 @@
  	os_free(global->params.override_driver);
  	os_free(global->params.override_ctrl_interface);
  
