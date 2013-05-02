@@ -3,14 +3,10 @@
 ##
 
 
--When wpa_supplicant terminate free statics variables
-
--better code (sorry):
-	-remove statics variables and put them to struct wpa_s.
+-better code:
 	-use enum, define or const char ** for env names
-	-separate code into .h file
 	-change name of variables and functions
-	-not in an only one function
+	-~not in an only one function
 
 -When event WPA_ASSOCIATING adding WPAS_SSID var for using somes things before
 association like macchanger.
