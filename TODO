@@ -2,11 +2,12 @@
 ## wpa_supplicant patch run hook script TODO
 ##
 
+-Trying with other versions of wpa_supplicant !!!!
 
 -better code:
 	-use enum, define or const char ** for env names
 	-change name of variables and functions
 	-~not in an only one function
 
--When event WPA_ASSOCIATING adding WPAS_SSID var for using somes things before
+-When event WPA_ASSOCIATING adding WPAS_MAC var for using somes things before
 association like macchanger.
