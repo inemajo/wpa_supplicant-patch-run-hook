@@ -1,0 +1,8 @@
+########################
+##
+## Please for testing this example copy it to /etc/wpa_supplicant
+## And don't forget to save your /etc/wpa_supplicant/wpa_supplicant.conf 
+##
+#  Or if you just start wpa_supplicant -i "ifname" -c ./wpa_supplicant.conf
+#  Change the event_cmd in the wpa_supplicant.conf file
+#

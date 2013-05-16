@@ -1,6 +1,6 @@
 --- wpa_supplicant/wpa_supplicant.c.old	2013-04-26 23:26:29.628648631 +0200
-+++ wpa_supplicant/wpa_supplicant.c	2013-05-02 17:40:17.750589185 +0200
-@@ -509,6 +509,85 @@
++++ wpa_supplicant/wpa_supplicant.c	2013-05-16 13:04:58.924047142 +0200
+@@ -509,6 +509,113 @@
  }
  
  
@@ -14,6 +14,15 @@
 +  strncpy(env[i], key, keylen);
 +  strcpy(env[i] + keylen, value);
 +}
++void		sprintf_env(char **env, int i, size_t len, const char *format, ...)
++{
++  va_list	ap;
++
++  env[i] = os_realloc(env[i], sizeof(char) * len);
++  va_start(ap, format);
++  vsprintf(env[i], format, ap);
++  va_end(ap);
++}
 +
 +/**
 + * wpa_supplicant_call_event - Call event file for current connection state
@@ -24,19 +33,40 @@
 + * association is completed for WPA/WPA2 4-Way Handshake is started.
 + */
 +
++int			wpa_supplicant_fork_exec(struct wpa_exec *exe)
++{
++  pid_t			pid;
++  int			status;
++
++  if ((pid = vfork()) == -1) {
++    perror("wpa_supplicant_call_event vfork failed:");
++    return (-1);
++  }
++  
++  if (pid == 0) {
++    printf("execve:%s\n", exe->argv[0]);
++    execve(exe->argv[0], exe->argv, exe->env);
++    perror("wpa_supplicant_call_event, execve:");
++    exit(1);
++  }
++  
++  pid = waitpid(pid, &status, 0);
++  printf("fils ok!\n");
++  return (status);
++}
++
 +void			wpa_supplicant_call_event(struct wpa_supplicant *wpa_s,
 +				  enum wpa_states state)
 +{
 +  struct wpa_exec	*exe;
-+  struct wpa_ssid	*s_ssid;
 +  int			i;
 +  int			len;
++  int			status;
 +
-+  s_ssid = wpa_s->current_ssid;
 +  exe = &(wpa_s->global->event_exec);
 +
-+  exe->argv[0] = os_realloc(exe->argv[0], strlen(wpa_s->conf->event_path)+1);
-+  strcpy(exe->argv[0], wpa_s->conf->event_path);
++  exe->argv[0] = os_realloc(exe->argv[0], strlen(wpa_s->conf->event_cmd)+1);
++  strcpy(exe->argv[0], wpa_s->conf->event_cmd);
 +
 +  i = exe->wpas_env_size;
 +
@@ -45,25 +75,29 @@
 +
 +  switch (state) {
 +
++  case WPA_ASSOCIATING:
++    copy_env(exe->env, i++, "WPAS_SSID=", wpa_s->trying_ssid->ssid);
++
++    sprintf_env(exe->env, i++, sizeof("WPAS_MAC=") + 17, 
++		"WPAS_MAC=" MACSTR, MAC2STR(wpa_s->bssid));
++    break;
++
 +  case WPA_COMPLETED:
-+    copy_env(exe->env, i++, "WPAS_SSID=", s_ssid->ssid);
++    copy_env(exe->env, i++, "WPAS_SSID=", wpa_s->current_ssid->ssid);
 +    copy_env(exe->env, i++, "WPAS_REAUTH=", (wpa_s->reassociated_connection ? 
 +					     "1" : "0"));
-+  
-+    exe->env[i] = os_realloc(exe->env[i], sizeof(char) * (sizeof("WPAS_MAC=") + 17));
-+    sprintf(exe->env[i], "WPAS_MAC=" MACSTR , MAC2STR(wpa_s->bssid));
-+    ++i;
 +
-+    if (s_ssid->id < 10)
++    sprintf_env(exe->env, i++, sizeof("WPAS_MAC=") + 17, 
++		"WPAS_MAC=" MACSTR, MAC2STR(wpa_s->bssid));
++
++    if (wpa_s->current_ssid->id < 10)
 +      len = 1;
-+    else if (s_ssid->id < 100)
++    else if (wpa_s->current_ssid->id < 100)
 +      len = 2;
 +    else
-+      for (len = 2; len * 10 > s_ssid->id; len++);
-+    exe->env[i] = os_realloc(exe->env[i], sizeof(char) * (len + sizeof("WPAS_ID=")));
-+    sprintf(exe->env[i], "WPAS_ID=%d", s_ssid->id);
-+    ++i;
-+
++      for (len = 2; len * 10 > wpa_s->current_ssid->id; len++);
++    sprintf_env(exe->env, i++, sizeof("WPAS_ID=") + 17, 
++		"WPAS_ID=%d=", wpa_s->current_ssid->id);
 +    break;
 +  }
 +
@@ -73,30 +107,24 @@
 +  if (access(exe->argv[0], X_OK|F_OK) == -1) {
 +    wpa_msg(wpa_s, MSG_ERROR, "file \"%s\" doesn't exist or haven't permission", exe->argv[0]);
 +  }
-+  else {
-+    if (fork() == 0) {
-+    execve(exe->argv[0], exe->argv, exe->env);
-+    perror("wpa_supplicant_call_event, execve:");
-+    exit(0);
-+    }
-+  }
-+
++  else 
++    wpa_supplicant_fork_exec(exe);
 +}
 +
  /**
   * wpa_supplicant_set_state - Set current connection state
   * @wpa_s: Pointer to wpa_supplicant data
-@@ -526,6 +605,9 @@
+@@ -526,6 +633,9 @@
  		   wpa_supplicant_state_txt(wpa_s->wpa_state),
  		   wpa_supplicant_state_txt(state));
  
-+	if (wpa_s->conf->event_path != NULL)
++	if (wpa_s->conf->event_cmd != NULL)
 +	  wpa_supplicant_call_event(wpa_s, state);
 +
  	if (state != WPA_SCANNING)
  		wpa_supplicant_notify_scanning(wpa_s, 0);
  
-@@ -581,6 +663,7 @@
+@@ -581,6 +691,7 @@
  			"received", sig);
  	}
  	wpa_supplicant_terminate_proc(global);
@@ -104,7 +132,15 @@
  }
  
  
-@@ -2227,6 +2310,52 @@
+@@ -1171,6 +1282,7 @@
+ 		wpa_supplicant_set_wpa_none_key(wpa_s, ssid);
+ 	}
+ 
++	wpa_s->trying_ssid = ssid;
+ 	wpa_supplicant_set_state(wpa_s, WPA_ASSOCIATING);
+ 	os_memset(&params, 0, sizeof(params));
+ 	if (bss) {
+@@ -2227,6 +2339,52 @@
  	return NULL;
  }
  
@@ -157,7 +193,7 @@
  
  /**
   * wpa_supplicant_init - Initialize %wpa_supplicant
-@@ -2261,6 +2390,9 @@
+@@ -2261,6 +2419,9 @@
  	global = os_zalloc(sizeof(*global));
  	if (global == NULL)
  		return NULL;
@@ -167,7 +203,7 @@
  	global->params.daemonize = params->daemonize;
  	global->params.wait_for_monitor = params->wait_for_monitor;
  	global->params.dbus_ctrl_interface = params->dbus_ctrl_interface;
-@@ -2404,6 +2536,8 @@
+@@ -2404,6 +2565,8 @@
  	os_free(global->params.override_driver);
  	os_free(global->params.override_ctrl_interface);
  

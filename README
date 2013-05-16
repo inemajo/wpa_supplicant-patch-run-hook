@@ -15,6 +15,9 @@
 ##	This patch has no definitive architecture, all variables name may and
 ##     fonctionnalities may change, please read the TODO file if you want
 ##     using this patch now
+##
+##
+##     wpa_supplicant v0.7.3
 ## !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
@@ -39,4 +42,4 @@ when WPA_COMPLETED state:
 
 In the /etc/wpa_supplicant/wpa_supplicant.conf you just add in global variable:
 
-event_path=/full-directory-path-of-script/script
+event_cmd=/full-directory-path-of-script/script
