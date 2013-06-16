@@ -12,10 +12,6 @@
  */
 
 ## !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-##	This patch has no definitive architecture, all variables name may and
-##     fonctionnalities may change, please read the TODO file if you want
-##     using this patch now
-##
 ##
 ##     Tested on: 
 ##			wpa_supplicant v0.7.3 - (kernel 3.X with (and not) selinux)
@@ -23,7 +19,7 @@
 
 
 WHY?:
-There are no simply way to use wpa_supplicant events. With this patch, in every
+There are no simply way (using wpa_cli has a daemon isn't satisfying) to use wpa_supplicant events. With this patch, in every
 events of wpa_supplicant it may call a hook script and it passing in
 environnement variables infos of current state.
 
