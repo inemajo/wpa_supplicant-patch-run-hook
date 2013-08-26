@@ -1,0 +1,10 @@
+--- wpa_supplicant/config.c.old	2013-08-26 16:38:47.962418073 +0200
++++ wpa_supplicant/config.c	2013-08-26 16:40:45.904943589 +0200
+@@ -3070,6 +3070,7 @@
+ 	{ INT_RANGE(auto_interworking, 0, 1), 0 },
+ 	{ INT(okc), 0 },
+ 	{ INT(pmf), 0 },
++	{ STR(event_cmd) }
+ };
+ 
+ #undef FUNC

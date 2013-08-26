@@ -1,0 +1,11 @@
+--- wpa_supplicant/config_file.c.old	2013-08-26 16:35:47.096679206 +0200
++++ wpa_supplicant/config_file.c	2013-08-26 16:41:30.729383206 +0200
+@@ -970,6 +970,8 @@
+ 		fprintf(f, "okc=%d\n", config->okc);
+ 	if (config->pmf)
+ 		fprintf(f, "pmf=%d\n", config->pmf);
++	if (config->event_cmd)
++		fprintf(f, "event_cmd=%s\n", config->event_cmd);
+ }
+ 
+ #endif /* CONFIG_NO_CONFIG_WRITE */

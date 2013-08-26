@@ -1,5 +1,5 @@
---- wpa_supplicant/wpa_supplicant_i.h.old	2013-05-02 13:16:53.638444122 +0200
-+++ wpa_supplicant/wpa_supplicant_i.h	2013-05-02 18:15:12.018407234 +0200
+--- wpa_supplicant/wpa_supplicant_i.h.old	2013-07-05 11:51:47.166478506 +0200
++++ wpa_supplicant/wpa_supplicant_i.h	2013-07-05 11:55:38.112199746 +0200
 @@ -183,6 +183,19 @@
  };
  

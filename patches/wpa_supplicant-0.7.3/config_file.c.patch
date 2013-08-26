@@ -1,0 +1,21 @@
+--- wpa_supplicant/config_file.c.old	2013-07-05 11:50:52.250072161 +0200
++++ wpa_supplicant/config_file.c	2013-07-05 11:57:27.499019229 +0200
+@@ -459,7 +459,8 @@
+ #endif /* CONFIG_WPS */
+ 	{ FUNC(country) },
+ 	{ INT(bss_max_count) },
+-	{ INT_RANGE(filter_ssids, 0, 1) }
++	{ INT_RANGE(filter_ssids, 0, 1) },
++	{ STR(event_cmd) }
+ };
+ 
+ #undef FUNC
+@@ -895,6 +896,8 @@
+ 		fprintf(f, "bss_max_count=%u\n", config->bss_max_count);
+ 	if (config->filter_ssids)
+ 		fprintf(f, "filter_ssids=%d\n", config->filter_ssids);
++	if (config->event_cmd)
++		fprintf(f, "event_cmd=%s\n", config->event_cmd);
+ }
+ 
+ #endif /* CONFIG_NO_CONFIG_WRITE */
