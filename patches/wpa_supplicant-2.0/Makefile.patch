@@ -1,0 +1,16 @@
+--- ./wpa_supplicant/Makefile.old	2014-10-08 13:01:55.563435134 +0200
++++ ./wpa_supplicant/Makefile	2014-10-22 12:09:17.020706598 +0200
+@@ -1423,6 +1423,13 @@
+ endif
+ OBJS_t2 := $(OBJS) $(OBJS_l2) preauth_test.o
+ 
++ifdef CONFIG_CMDSTATE
++CFLAGS += -DCONFIG_CMDSTATE
++OBJS += cmdstate.o
++#OBJS_p += cmdstate.o
++#OBJS_c += cmdstate.o
++endif
++
+ OBJS_nfc := $(OBJS) $(OBJS_l2) nfc_pw_token.o
+ OBJS_nfc += $(OBJS_d) ../src/drivers/drivers.o
+ 

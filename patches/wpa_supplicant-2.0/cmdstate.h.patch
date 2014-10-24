@@ -1,0 +1,36 @@
+--- ./wpa_supplicant/cmdstate.h.old	2014-10-22 10:55:24.721117969 +0200
++++ ./wpa_supplicant/cmdstate.h	2014-10-22 12:28:44.086116273 +0200
+@@ -0,0 +1,33 @@
++/*
++ * WPA Supplicant - cmdstate definitions
++ * Copyright (c) 2003-2012, Jouni Malinen <j@w1.fi>
++ *
++ * This software may be distributed under the terms of the BSD license.
++ * See README for more details.
++ *
++ */
++
++#ifndef __CMDSTATE_H__
++#define __CMDSTATE_H__
++
++#include <stdio.h>
++#include <stdlib.h>
++
++struct wpa_global;
++
++struct wpa_cmd {
++  char **env;
++  size_t *env_sz; /* alloc size for env[i] strings */
++  size_t index; /* env[index] = NULL */
++  size_t estart; /* start position (env + estart) for wpa_supplicant
++		    environ vars */
++  size_t ealloc; /* env = malloc(ealloc * sizeof(char *)) */
++  char *argv[2];
++};
++
++void wpa_supplicant_callcmd(struct wpa_supplicant *wpa_s, 
++			    enum wpa_states state);
++void wpa_supplicant_init_exec(struct wpa_global *global);
++void wpa_supplicant_deinit_exec(struct wpa_cmd *exe);
++
++#endif

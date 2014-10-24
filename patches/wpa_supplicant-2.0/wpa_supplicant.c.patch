@@ -1,202 +1,35 @@
---- wpa_supplicant/wpa_supplicant.c.old	2013-08-27 17:12:31.357794398 +0200
-+++ wpa_supplicant/wpa_supplicant.c	2013-08-26 17:06:36.806554650 +0200
-@@ -107,6 +107,114 @@
- extern int wpa_debug_timestamp;
- extern struct wpa_driver_ops *wpa_drivers[];
- 
-+/* for wpa_supplicant_call_event will be change */
-+void		copy_env(char **env, int i, const char *key, const char *value)
-+{
-+  int		keylen;
-+
-+  keylen = strlen(key);
-+  env[i] = os_realloc(env[i], sizeof(char) * (1 + keylen + strlen(value)));
-+  strncpy(env[i], key, keylen);
-+  strcpy(env[i] + keylen, value);
-+}
-+void		sprintf_env(char **env, int i, size_t len, const char *format, ...)
-+{
-+  va_list	ap;
-+
-+  env[i] = os_realloc(env[i], sizeof(char) * len);
-+  va_start(ap, format);
-+  vsprintf(env[i], format, ap);
-+  va_end(ap);
-+}
-+
-+
-+/**
-+ * wpa_supplicant_call_event - Call event file for current connection state
-+ * @wpa_s: Pointer to wpa_supplicant data
-+ * @state: The new connection state
-+ *
-+ * This function is called whenever the connection state changes, e.g.,
-+ * association is completed for WPA/WPA2 4-Way Handshake is started.
-+ */
-+
-+int			wpa_supplicant_fork_exec(struct wpa_exec *exe)
-+{
-+  pid_t			pid;
-+  int			status;
-+
-+  if ((pid = vfork()) == -1) {
-+    perror("wpa_supplicant_call_event vfork failed:");
-+    return (-1);
-+  }
-+  
-+  if (pid == 0) {
-+    printf("execve:%s\n", exe->argv[0]);
-+    execve(exe->argv[0], exe->argv, exe->env);
-+    perror("wpa_supplicant_call_event, execve:");
-+    exit(1);
-+  }
-+  
-+  pid = waitpid(pid, &status, 0);
-+  printf("fils ok!\n");
-+  return (status);
-+}
-+
-+void			wpa_supplicant_call_event(struct wpa_supplicant *wpa_s,
-+				  enum wpa_states state)
-+{
-+  struct wpa_exec	*exe;
-+  int			i;
-+  int			len;
-+  int			status;
-+
-+  exe = &(wpa_s->global->event_exec);
-+
-+  exe->argv[0] = os_realloc(exe->argv[0], strlen(wpa_s->conf->event_cmd)+1);
-+  strcpy(exe->argv[0], wpa_s->conf->event_cmd);
-+
-+  i = exe->wpas_env_size;
-+
-+  copy_env(exe->env, i++, "WPAS_IFNAME=", wpa_s->ifname);
-+  copy_env(exe->env, i++, "WPAS_STATE=", wpa_supplicant_state_txt(state));
-+
-+  switch (state) {
-+
-+  case WPA_ASSOCIATING:
-+    /*    copy_env(exe->env, i++, "WPAS_SSID=", wpa_s->trying_ssid->ssid);*/
-+
-+    sprintf_env(exe->env, i++, sizeof("WPAS_MAC=") + 17, 
-+		"WPAS_MAC=" MACSTR, MAC2STR(wpa_s->bssid));
-+    break;
-+
-+  case WPA_COMPLETED:
-+    copy_env(exe->env, i++, "WPAS_SSID=", (char *)wpa_s->current_ssid->ssid);
-+    copy_env(exe->env, i++, "WPAS_REAUTH=", (wpa_s->reassociate ? 
-+					     "1" : "0"));
-+
-+    sprintf_env(exe->env, i++, sizeof("WPAS_MAC=") + 17, 
-+		"WPAS_MAC=" MACSTR, MAC2STR(wpa_s->bssid));
-+
-+    if (wpa_s->current_ssid->id < 10)
-+      len = 1;
-+    else if (wpa_s->current_ssid->id < 100)
-+      len = 2;
-+    else
-+      for (len = 2; len * 10 > wpa_s->current_ssid->id; len++);
-+    sprintf_env(exe->env, i++, sizeof("WPAS_ID=") + 17, 
-+		"WPAS_ID=%d=", wpa_s->current_ssid->id);
-+    break;
-+  }
-+
-+  if (exe->env[i] != NULL)
-+    free(exe->env[i]);
-+  exe->env[i] = NULL;
-+  if (access(exe->argv[0], X_OK|F_OK) == -1) {
-+    wpa_msg(wpa_s, MSG_ERROR, "file \"%s\" doesn't exist or haven't permission", exe->argv[0]);
-+  }
-+  else 
-+    wpa_supplicant_fork_exec(exe);
-+}
-+
- /* Configure default/group WEP keys for static WEP */
- int wpa_set_wep_keys(struct wpa_supplicant *wpa_s, struct wpa_ssid *ssid)
- {
-@@ -124,6 +232,52 @@
- 
- 	return set;
+--- ./wpa_supplicant/wpa_supplicant.c.old	2013-01-12 16:42:53.000000000 +0100
++++ ./wpa_supplicant/wpa_supplicant.c	2014-10-22 12:00:19.663424489 +0200
+@@ -707,6 +707,10 @@
+ 		    old_state == WPA_COMPLETED)
+ 			wpas_notify_auth_changed(wpa_s);
+ 	}
++#ifdef CONFIG_CMDSTATE
++	if (wpa_s->conf->change_state_cmd != NULL)
++	  wpa_supplicant_callcmd(wpa_s, state);
++#endif
  }
-+void		wpa_supplicant_init_exec(struct wpa_global *global)
-+{
-+  extern char	**environ;
-+  int		environ_size;
-+  int		i;
-+  int		len;
-+
-+  global->event_exec.argv[0] = NULL;
-+  global->event_exec.argv[1] = NULL;
-+
-+  for (environ_size = 0; environ[environ_size] != NULL; environ_size++);
-+  global->event_exec.wpas_env_size = environ_size;
-+
-+  /* max = 6 + 1 */
-+  global->event_exec.env = os_zalloc((environ_size + 7) * sizeof(char **));
-+
-+  for (i = 0 ; i != environ_size ; i++) {
-+    len = strlen(environ[i]);
-+    global->event_exec.env[i] = os_zalloc(len * sizeof(char *));
-+    strcpy(global->event_exec.env[i], environ[i]);
-+  }
-+  
-+  memset(global->event_exec.env + environ_size, 0, sizeof(char **) * 7);
-+}
-+
-+void		wpa_supplicant_deinit_exec(struct wpa_exec *exe)
-+{
-+  int		i;
-+
-+  if (exe->env != NULL) {
-+    for (i = 0 ; i != exe->wpas_env_size ; i++)
-+      os_free(exe->env[i]);
-+
-+    while (i != (exe->wpas_env_size + 7)) {
-+      if (exe->env[i] != NULL)
-+	os_free(exe->env[i]);
-+      ++i;
-+    }
-+
-+    os_free(exe->env);
-+  }
-+
-+  if (exe->argv[0] != NULL)
-+    os_free(exe->argv[0]);
-+}
-+
  
  
- static int wpa_supplicant_set_wpa_none_key(struct wpa_supplicant *wpa_s,
-@@ -651,8 +805,11 @@
- 		wpa_supplicant_state_txt(wpa_s->wpa_state),
- 		wpa_supplicant_state_txt(state));
- 
-+	if (wpa_s->conf->event_cmd != NULL)
-+	  wpa_supplicant_call_event(wpa_s, state);
-+
- 	if (state != WPA_SCANNING)
--		wpa_supplicant_notify_scanning(wpa_s, 0);
-+	  wpa_supplicant_notify_scanning(wpa_s, 0);
- 
- 	if (state == WPA_COMPLETED && wpa_s->new_connection) {
- #if defined(CONFIG_CTRL_IFACE) || !defined(CONFIG_NO_STDOUT_DEBUG)
-@@ -3223,6 +3380,9 @@
+@@ -3223,6 +3227,11 @@
  	global = os_zalloc(sizeof(*global));
  	if (global == NULL)
  		return NULL;
 +
++#ifdef CONFIG_CMDSTATE
 +	wpa_supplicant_init_exec(global);
++#endif
 +
  	dl_list_init(&global->p2p_srv_bonjour);
  	dl_list_init(&global->p2p_srv_upnp);
  	global->params.daemonize = params->daemonize;
-@@ -3378,6 +3538,8 @@
+@@ -3378,6 +3387,9 @@
  	os_free(global->params.override_driver);
  	os_free(global->params.override_ctrl_interface);
  
-+	wpa_supplicant_deinit_exec(&(global->event_exec));
-+
++#ifdef CONFIG_CMDSTATE
++	wpa_supplicant_deinit_exec(&(global->cmdstate_exe));
++#endif
  	os_free(global->p2p_disallow_freq);
  
  	os_free(global);

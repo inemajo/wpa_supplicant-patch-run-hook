@@ -1,0 +1,298 @@
+--- ./wpa_supplicant/cmdstate.c.old	2014-10-08 13:11:39.514134745 +0200
++++ ./wpa_supplicant/cmdstate.c	2014-10-22 12:28:20.043416848 +0200
+@@ -0,0 +1,295 @@
++/*
++ * WPA Supplicant - cmdstate
++ * Copyright (c) 2003-2012, Jouni Malinen <j@w1.fi>
++ *
++ * This software may be distributed under the terms of the BSD license.
++ * See README for more details.
++ *
++ * This file implements functions for calling cmd when %wpa_supplicant
++ * change it's state (CONNECTED,SCANNING,TERMINATE...)
++ */
++
++#include <stdarg.h>
++
++#include "includes.h"
++
++#include "common.h"
++#include "eloop.h"
++#include "config.h"
++#include "wpa_supplicant_i.h"
++#include "bss.h"
++#include "cmdstate.h"
++
++/**
++ * env_realloc - realloc environ size
++ * @exe: Pointer to %wpa_cmd from global data of wpa_supplicant_init()
++ *
++ * This function is called to realloc environ pointer of %wpa_cmd
++ */
++static void env_realloc(struct wpa_cmd *exe, int size)
++{
++  int old;
++
++  if (size <= 0 || size == exe->ealloc)
++    return;
++
++  old = exe->ealloc;
++  while (old-- > size) {
++    if (exe->env[old]) {
++      free(exe->env[old]);
++      exe->env[old] = NULL;
++      exe->env_sz = 0;
++    }
++  }
++
++  exe->env = os_realloc(exe->env, size * sizeof(char *));
++  exe->env_sz = os_realloc(exe->env_sz, size * sizeof(size_t));
++  for (old = exe->ealloc; old < size; old++) {
++    exe->env[old] = NULL;
++    exe->env_sz[old] = 0;
++  }
++
++  exe->ealloc = size;
++}
++
++/**
++ * env_insert_end - insert NULL pointer of last environ item
++ * @exe: Pointer to %wpa_cmd from global data of wpa_supplicant_init()
++ *
++ * This function is called insert NULL pointer of last environ item
++ */
++static void env_insert_end(struct wpa_cmd *exe)
++{
++  size_t i = exe->index;
++
++  if (i >= exe->ealloc)
++    env_realloc(exe, i+1);
++  else if (exe->env[i])
++    free(exe->env[i]);
++
++  exe->env[i] = NULL;
++  exe->env_sz[i] = 0;
++}
++
++/**
++ * env_reset - replace index of %wpa_cmd from start
++ * @exe: Pointer to %wpa_cmd from global data of wpa_supplicant_init()
++ *
++ * This function replace index of %wpa_cmd to the last system environ item
++ */
++static void env_reset(struct wpa_cmd *exe)
++{
++  exe->index = exe->estart;
++}
++
++/**
++ * env_insert - insert new environ key=value
++ * @exe: Pointer to %wpa_cmd from global data of wpa_supplicant_init()
++ * @format: format for vsnprintf "WPAS_VAR=..."
++ *
++ * Insert new wpa_supplicant environ key=value
++ */
++static void env_insert(struct wpa_cmd *exe, const char *format, ...)
++{
++  size_t len;
++  int i = exe->index;
++  va_list ap;
++
++  if (i >= exe->ealloc)
++    env_realloc(exe, i+1);
++
++  va_start(ap, format);
++  len = vsnprintf(exe->env[i], exe->env_sz[i], format, ap);
++  va_end(ap);
++  if (len >= exe->env_sz[i]) {
++    exe->env_sz[i] = len + 1;
++    exe->env[i] = os_realloc(exe->env[i], exe->env_sz[i]);
++    va_start(ap, format);
++    (void)vsnprintf(exe->env[i], exe->env_sz[i], format, ap);
++    va_end(ap);
++  }
++
++  ++exe->index;
++}
++
++/**
++ * wpa_supplicant_childdie - called when wpa_supplicant receive SIGCHILD signal
++ * @sig: must be SIGCHILD
++ * @signal_ctx: Pointer to global data from wpa_suppicant_init()
++ *
++ * This function is called when wpa_supplicant receive a SIGCHILD signal
++ * Properly clean child _exit() with wait()
++ */
++static void wpa_supplicant_childdie(int sig, void *signal_ctx)
++{
++  pid_t pid;
++  struct wpa_supplicant *wpa_s = signal_ctx;
++  int status;
++
++(void)wpa_s;
++  pid = wait(&status);
++  wpa_printf(MSG_DEBUG, "got die for child %d", pid);
++}
++
++/**
++ * wpas_fork_exec - Call event cmd for current connection state
++ * @wpa_s: Pointer to wpa_supplicant global data
++ * @state: The new connection state
++ *
++ * This function is called whenever the connection state changes, e.g.
++ * do fork() and execute %change_state_cmd
++ */
++static int wpas_fork_exec(struct wpa_supplicant *wpa_s, struct wpa_cmd *exe)
++{
++  pid_t pid;
++  int status;
++
++  env_insert_end(exe);
++  if ((pid = fork()) == -1) {
++    wpa_printf(MSG_ERROR, "fork failed");
++    return (-1);
++  }
++  
++  if (pid == 0) {
++    execve(exe->argv[0], exe->argv, exe->env);
++    _exit(1);
++  }
++  else
++    wpa_printf(MSG_DEBUG, "child execve:%s", exe->argv[0]);
++
++  eloop_register_signal(SIGCHLD, wpa_supplicant_childdie, wpa_s);
++  return (status);
++}
++
++/**
++ * wpa_supplicant_callcmd - Prepare wpa_supplicant environ vars before exec
++ * @wpa_s: Pointer to wpa_supplicant global data
++ * @state: The new connection state
++ *
++ * This function initialize environ vars before execute %change_state_cmd file,
++ * it be called by wpa_supplicant_set_state()
++ */
++void wpa_supplicant_callcmd(struct wpa_supplicant *wpa_s,
++			    enum wpa_states state)
++{
++  struct wpa_cmd *exe = &(wpa_s->global->cmdstate_exe);
++  struct wpa_ssid *ssid = wpa_s->current_ssid;
++  struct wpa_bss *bss = wpa_s->current_bss;
++  const u8 *bssid = wpa_s->bssid;
++
++  /* theses events are not used */
++  if (state == WPA_4WAY_HANDSHAKE || state == WPA_GROUP_HANDSHAKE)
++    return ;
++
++  if (!exe->argv[0] || strcmp(exe->argv[0], wpa_s->conf->change_state_cmd)) {
++    exe->argv[0] = os_realloc(exe->argv[0], strlen(wpa_s->conf->change_state_cmd)+1);
++    strcpy(exe->argv[0], wpa_s->conf->change_state_cmd);
++  }
++
++  env_reset(exe);
++  env_insert(exe, "WPAS_IFNAME=%s", wpa_s->ifname);
++  env_insert(exe, "WPAS_STATE=%s", wpa_supplicant_state_txt(state));
++
++  if (bss && !wpas_driver_bss_selection(wpa_s))
++    env_insert(exe, "WPAS_SSID=%s", wpa_ssid_txt(bss->ssid, bss->ssid_len));
++
++  if (ssid)
++    env_insert(exe, "WPAS_ID=%d",  ssid->id);
++  else
++    env_insert(exe, "WPAS_ID=-1");
++
++  if (is_zero_ether_addr(bssid))
++    bssid = wpa_s->pending_bssid;
++  if (!is_zero_ether_addr(bssid))
++    env_insert(exe, "WPAS_MAC=" MACSTR, MAC2STR(bssid));
++
++  switch (state)
++    {
++
++    case WPA_COMPLETED:
++      env_insert(exe, "WPAS_REAUTH=%s", wpa_s->reassociate ? "1" : "0");
++      break;
++
++    case WPA_DISCONNECTED:
++      if (ssid)
++	env_insert(exe, "WPAS_AUTHFAILURE=%d", ssid->auth_failures);
++      break;
++
++    case WPA_ASSOCIATING:
++    case WPA_ASSOCIATED:
++    case WPA_INTERFACE_DISABLED:
++    case WPA_INACTIVE:
++    case WPA_SCANNING:
++    case WPA_AUTHENTICATING:
++    case WPA_4WAY_HANDSHAKE:
++    case WPA_GROUP_HANDSHAKE:
++      break;
++  }
++
++  if (access(exe->argv[0], X_OK|F_OK) == -1)
++    wpa_msg(wpa_s, MSG_ERROR, 
++	    "file \"%s\" doesn't exist or haven't permission to exec", 
++	    exe->argv[0]);
++  else
++    wpas_fork_exec(wpa_s, exe);
++}
++
++/**
++ * wpas_supplicant_init_exec - initialize %wpa_cmd structure
++ * @global: Pointer to wpa_supplicant global data
++ *
++ * This function is called by wpa_supplicant_init()
++ */
++void wpa_supplicant_init_exec(struct wpa_global *global)
++{
++  extern char **environ;
++  int environ_size;
++  int i;
++  size_t len;
++
++  global->cmdstate_exe.argv[0] = NULL;
++  global->cmdstate_exe.argv[1] = NULL;
++
++  for (environ_size = 0; environ[environ_size] != NULL; environ_size++);
++  global->cmdstate_exe.estart = environ_size-1;
++  global->cmdstate_exe.ealloc = environ_size;
++  global->cmdstate_exe.index = global->cmdstate_exe.estart;
++  global->cmdstate_exe.env = os_zalloc(global->cmdstate_exe.ealloc * sizeof(char *));
++  global->cmdstate_exe.env_sz = os_zalloc(global->cmdstate_exe.ealloc * sizeof(size_t));
++
++  for (i = 0 ; i != environ_size ; i++) {
++    len = strlen(environ[i]);
++    global->cmdstate_exe.env[i] = os_zalloc((len+1) * sizeof(char));
++    global->cmdstate_exe.env_sz[i] = len;
++    strncpy(global->cmdstate_exe.env[i], environ[i], len+1);
++  }
++  /* global->cmdstate_exe.env[environ_size] = NULL; */
++  /* global->cmdstate_exe.env_sz[environ_size] = 0; */
++
++
++  env_reset(&global->cmdstate_exe);
++}
++
++/**
++ * wpas_supplicant_deinit_exec - destroy %wpa_cmd structure
++ * @global: Pointer to wpa_cmd
++ *
++ * This function is called by wpa_supplicant_deinit()
++ */
++void wpa_supplicant_deinit_exec(struct wpa_cmd *exe)
++{
++  int i;
++
++  if (exe->env != NULL)
++    {
++      for (i = 0 ; i != exe->ealloc ; i++) {
++	if (exe->env[i])
++	  os_free(exe->env[i]);
++      }
++      os_free(exe->env);
++      os_free(exe->env_sz);
++    }
++
++  if (exe->argv[0] != NULL)
++    os_free(exe->argv[0]);
++}

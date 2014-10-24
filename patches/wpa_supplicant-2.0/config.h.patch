@@ -1,18 +1,20 @@
---- wpa_supplicant/config.h.old	2013-08-26 16:32:30.424137951 +0200
-+++ wpa_supplicant/config.h	2013-08-26 16:58:40.074514621 +0200
-@@ -797,6 +797,15 @@
+--- ./wpa_supplicant/config.h.old	2013-01-12 16:42:53.000000000 +0100
++++ ./wpa_supplicant/config.h	2014-10-22 10:58:17.394959248 +0200
+@@ -797,6 +797,17 @@
  	 * this default behavior.
  	 */
  	enum mfp_options pmf;
 +
++#ifdef CONFIG_CMDSTATE
 +        /**
-+	 * event_cmd - Path to the event file
++	 * change_state_cmd - Exec to call when wpa_supplicant change state
 +	 *
-+	 *   This file is called after a wpa_supplicant event
-+	 *   wpa_supplicant fork and execve event file with
-+	 *   information in the environnement.
++	 *   This file is called when wpa_supplicant change state
++	 *   wpa_supplicant fork and execve with
++	 *   informations in the environnement.
 +	 */
-+        char *event_cmd;
++        char *change_state_cmd;
++#endif
  };
  
  

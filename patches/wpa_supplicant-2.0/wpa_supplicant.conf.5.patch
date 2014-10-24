@@ -1,0 +1,11 @@
+--- ./wpa_supplicant/doc/docbook/wpa_supplicant.conf.5.old	2014-10-22 10:56:18.491445747 +0200
++++ ./wpa_supplicant/doc/docbook/wpa_supplicant.conf.5	2014-10-22 11:30:39.880674835 +0200
+@@ -43,6 +43,8 @@
+ # allow frontend (e.g., wpa_cli) to be used by all users in 'wheel' group
+ ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=wheel
+ #
++# call script when wpa_supplicant change it's state
++change_state_cmd=/etc/wpa_supplicant/change_state.sh
+ # home network; allow all valid ciphers
+ network={
+ 	ssid="home"

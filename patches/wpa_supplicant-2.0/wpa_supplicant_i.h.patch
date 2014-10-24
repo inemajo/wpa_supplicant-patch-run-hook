@@ -1,23 +1,25 @@
---- wpa_supplicant/wpa_supplicant_i.h.old	2013-08-26 16:42:20.093766066 +0200
-+++ wpa_supplicant/wpa_supplicant_i.h	2013-08-26 17:01:51.320123722 +0200
+--- ./wpa_supplicant/wpa_supplicant_i.h.old	2013-01-12 16:42:53.000000000 +0100
++++ ./wpa_supplicant/wpa_supplicant_i.h	2014-10-22 11:48:36.931209851 +0200
 @@ -41,6 +41,12 @@
  struct ctrl_iface_global_priv;
  struct wpas_dbus_priv;
  
-+struct wpa_exec {
-+  char		**env;
-+  size_t	wpas_env_size;
-+  char		*argv[2];
-+};
++#include <sys/wait.h>
++
++#ifdef CONFIG_CMDSTATE
++#include "cmdstate.h"
++#endif
 +
  /**
   * struct wpa_interface - Parameters for wpa_supplicant_add_iface()
   */
-@@ -246,6 +252,7 @@
+@@ -246,6 +252,9 @@
  #define MAX_WFD_SUBELEMS 10
  	struct wpabuf *wfd_subelem[MAX_WFD_SUBELEMS];
  #endif /* CONFIG_WIFI_DISPLAY */
-+        struct wpa_exec event_exec;
++#ifdef CONFIG_CMDSTATE
++        struct wpa_cmd cmdstate_exe;
++#endif
  };
  
  
